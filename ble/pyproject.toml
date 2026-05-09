@@ -1,0 +1,47 @@
+[project]
+name = "hermes-ble-nodes"
+dynamic = ["version"]
+description = "A Hermes BLE node library"
+authors = [{ name = "floris vernieuwe", email = "floris@vernieuwe.eu" }]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "bleak>=0.22.3",
+    "node-hermes-core",
+    # "node-hermes-qt>=1.2.1",
+    # "pydantic>=2.10.6",
+    # "qt-ble-discovery-widget>=1.0.0",
+    # "qt-custom-treewidget>=0.2.1",
+    # "qtpy>=2.4.3",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.9",
+    # "pyside6>=6.8.2.1",
+]
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E402"]
+
+[tool.ruff]
+line-length = 120
+exclude = ["**.pyi", "**/.venv/**","**/ui"]
+include = ["src/**.py", "test/**.py"]
+
+[tool.pyright]
+ignore = ["**.pyi", "**/.venv/**","**/ui"]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.pyright.defineConstant]
+PYQT5 = false
+PYSIDE2 = false
+PYQT6 = false
+PYSIDE6 = true

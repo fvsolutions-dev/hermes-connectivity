@@ -1,0 +1,92 @@
+import time
+from typing import List, Literal
+
+from bleak import BleakScanner
+from bleak.backends.device import BLEDevice
+from bleak.backends.scanner import AdvertisementData
+
+from node_hermes_core.datatypes import BinaryDataPacket
+from node_hermes_core.generic_node.generic import AsyncGenericNode
+from node_hermes_core.source_sink_node import SourceNode
+from pydantic import Field
+from dataclasses import dataclass
+
+@dataclass
+class AdvertisementDataPacket(BinaryDataPacket):
+    device: str
+    rssi: int
+    
+class BleAdvertisingNode(SourceNode, AsyncGenericNode):
+    """Source node that scans for BLE advertisements and emits each one as a data packet."""
+
+    class Config(SourceNode.Config):
+        type: Literal["ble_advertising_node"] = "ble_advertising_node"
+        address: str | list[str] | None = Field(
+            description="Optional MAC/UUID filter; only emit advertisements from these addresses (string or list of strings). If None, emit from all devices.",
+            default=None,
+        )
+        service_uuids: List[str] | None = Field(
+            description="Optional list of service UUIDs to filter on",
+            default=None,
+        )
+        scanning_mode: Literal["active", "passive"] = Field(
+            description="BLE scanning mode",
+            default="active",
+        )
+        company_id: int|None = Field(
+            description="Optional manufacturer ID to filter on (e.g. 0x004C for Apple)",
+            default=None,
+        )
+        deduplicate: bool = Field(
+            description="Whether to deduplicate advertisements (only emit data from each unique device address once)",
+            default=False,
+        )
+
+    config: Config
+    scanner: BleakScanner | None = None
+    last_data_per_uuid: dict[str,bytes] = {}
+    async def init(self):
+        self.log.info("Starting BLE advertisement scanner")
+        self.scanner = BleakScanner(
+            detection_callback=self._on_advertisement,
+            service_uuids=self.config.service_uuids,
+            scanning_mode=self.config.scanning_mode,
+        )
+        await self.scanner.start()
+
+    async def deinit(self):
+        if self.scanner is not None:
+            await self.scanner.stop()
+            self.scanner = None
+
+    def _on_advertisement(self, device: BLEDevice, advertisement_data: AdvertisementData):
+        
+        if self.config.address is not None:
+            if isinstance(self.config.address, str):
+                if device.address != self.config.address:
+                    return
+            elif isinstance(self.config.address, list):
+                if device.address not in self.config.address:
+                    return
+    
+        for company_id, payload in advertisement_data.manufacturer_data.items():
+            if self.config.company_id is not None and company_id != self.config.company_id:
+                continue
+            
+            if self.config.deduplicate:
+                if device.address in self.last_data_per_uuid and self.last_data_per_uuid[device.address] == payload:
+                    return  
+                self.last_data_per_uuid[device.address] = payload
+            
+            packet = AdvertisementDataPacket(
+                source=self.config.name,
+                timestamp=time.time(),
+                data=payload,
+                device=device.address,
+                rssi=advertisement_data.rssi,
+            )
+
+            self.send_data(packet)
+            
+    def get_data(self) -> None:
+        return None

@@ -1,0 +1,29 @@
+[project]
+name = "hermes-socket-nodes"
+dynamic = ["version"]
+description = "Hermes nodes for socket transports (UDP, TCP)"
+authors = [{ name = "floris vernieuwe", email = "floris@vernieuwe.eu" }]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "node-hermes-core",
+]
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E402"]
+
+[tool.ruff]
+line-length = 120
+exclude = ["**.pyi", "**/.venv/**"]
+include = ["src/**.py", "test/**.py"]
+
+[tool.pyright]
+ignore = ["**.pyi", "**/.venv/**"]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"

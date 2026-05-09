@@ -1,0 +1,30 @@
+[project]
+name = "hermes-uart-nodes"
+dynamic = ["version"]
+description = "Hermes nodes for UART / serial-port transports"
+authors = [{ name = "floris vernieuwe", email = "floris@vernieuwe.eu" }]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "node-hermes-core",
+    "aioserial>=1.3.1",
+]
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E402"]
+
+[tool.ruff]
+line-length = 120
+exclude = ["**.pyi", "**/.venv/**"]
+include = ["src/**.py", "test/**.py"]
+
+[tool.pyright]
+ignore = ["**.pyi", "**/.venv/**"]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
