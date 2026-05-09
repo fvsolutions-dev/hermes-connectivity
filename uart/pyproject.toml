@@ -23,8 +23,14 @@ include = ["src/**.py", "test/**.py"]
 ignore = ["**.pyi", "**/.venv/**"]
 
 [build-system]
-requires = ["hatchling", "hatch-vcs"]
-build-backend = "hatchling.build"
+requires = ["uv-dynamic-versioning"]
+build-backend = "uv_dynamic_versioning"
 
-[tool.hatch.version]
-source = "vcs"
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+fallback-version = "0.0.0"
+
+[tool.uv.build-backend]
+module-name = "hermes_uart_nodes"
+module-root = "src"
