@@ -14,9 +14,13 @@ BURST-link wire format: each payload is wrapped as
 | `BurstLinkNode` (decoder) | framed bytes in → decoded packets out |
 | `BurstLinkEncoder` | payload packets in → framed bytes out |
 
-Decoder buffers partial frames between `handle_data` calls; CRC failures
-emit a log warning and the bad frame is dropped (the buffer is not
-poisoned). Wire format mirrors
-[`burst-link-protocol`](./burst-link-protocol)'s `BurstInterfacePy`; the
-submodule is the canonical reference (and offers a C-extension fast path
-for hosts that can compile it).
+Both nodes use [`burst-link-protocol`](./burst-link-protocol)'s
+`BurstInterfaceC` (nanobind C extension) under the hood — the canonical
+implementation, no duplicate logic. The C extension is built when this
+package is installed; pre-built wheels are also published from
+burst-link-protocol's CI.
+
+The decoder buffers partial frames between `handle_data` calls (state
+held inside `BurstInterfaceC`); CRC failures bump the `crc_errors`
+counter and the bad frame is silently dropped. Both nodes expose live
+counter strings via `info_string`.

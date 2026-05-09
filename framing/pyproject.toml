@@ -7,14 +7,15 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "node-hermes-core",
-    # COBS + CRC16 are everything the BURST wire format needs; we re-implement
-    # encode/decode in pure Python rather than pulling in burst-link-protocol
-    # (which ships a C extension that fights this dev environment's lack of
-    # a system compiler). The submodule under ./burst-link-protocol stays as
-    # the canonical reference; the wire format matches.
-    "cobs>=1.2.1",
-    "crc>=7.1.0",
+    # Use the canonical BURST implementation from the bundled submodule.
+    # `BurstInterfaceC` (C-fast-path via nanobind) is preferred; the package
+    # also ships a pure-Python `BurstInterfacePy` so a host without compiled
+    # wheels still imports cleanly.
+    "burst-link-protocol",
 ]
+
+[tool.uv.sources]
+burst-link-protocol = { path = "./burst-link-protocol", editable = true }
 
 [tool.ruff.lint]
 select = ["E", "F"]
