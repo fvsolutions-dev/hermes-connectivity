@@ -1,10 +1,11 @@
 """Hermes nodes for socket transports (UDP, TCP).
 
-This package is a stub — node classes will be added here. Each new node
-should be appended to the `NODES` list so the YAML loader can discover it
-via the `modules:` directive.
+WebSocket lives in `hermes-web-nodes`, not here.
 """
 
-NODES: list = []
+from .tcp_stream import TcpStreamClient
+from .udp_stream import UdpStream
 
-__all__ = ["NODES"]
+NODES = [UdpStream, TcpStreamClient]
+
+__all__ = ["UdpStream", "TcpStreamClient", "NODES"]
