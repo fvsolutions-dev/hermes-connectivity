@@ -1,10 +1,7 @@
-"""Hermes nodes for UART / serial-port transports.
+"""Hermes nodes for UART / serial-port transports."""
 
-This package is a stub — node classes will be added here. Each new node
-should be appended to the `NODES` list so the YAML loader can discover it
-via the `modules:` directive.
-"""
+from .serial_stream import SerialPortInfo, SerialStream, get_serial_ports
 
-NODES: list = []
+NODES = [SerialStream]
 
-__all__ = ["NODES"]
+__all__ = ["SerialStream", "SerialPortInfo", "get_serial_ports", "NODES"]
