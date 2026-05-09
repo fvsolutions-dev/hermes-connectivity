@@ -7,6 +7,7 @@ Hermes nodes that talk to the physical link layer.
 - **`ble/`** (`hermes-ble-nodes`) — BLE advertising scanner, GATT client, characteristic node.
 - **`uart/`** (`hermes-uart-nodes`) — Async serial-port node (powered by `aioserial`). _stub_
 - **`sockets/`** (`hermes-socket-nodes`) — UDP / TCP nodes. _stub_
+- **`framing/`** (`hermes-framing-nodes`) — Byte-stream framing nodes (COBS, burst-link). _stub_
 
 ## Layout
 
