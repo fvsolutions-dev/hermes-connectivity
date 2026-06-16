@@ -1,0 +1,30 @@
+[project]
+name = "hermes-connectivity"
+version = "0.1.0"
+description = "Workspace root for Hermes link-layer transport nodes (BLE, UART, sockets, framing)."
+readme = "README.md"
+requires-python = ">=3.13"
+
+[tool.uv.workspace]
+members = [
+    "ble",
+    "uart",
+    "sockets",
+    "framing",
+]
+
+[tool.uv.sources]
+hermes-ble-nodes = { workspace = true }
+hermes-uart-nodes = { workspace = true }
+hermes-socket-nodes = { workspace = true }
+hermes-framing-nodes = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.9",
+    "pytest>=8",
+    "pytest-asyncio>=1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

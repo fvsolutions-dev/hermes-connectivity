@@ -1,0 +1,39 @@
+[project]
+name = "hermes-framing-nodes"
+dynamic = ["version"]
+description = "Hermes nodes for byte-stream framing protocols (COBS, Burst-Link, ...)"
+authors = [{ name = "floris vernieuwe", email = "floris@vernieuwe.eu" }]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "node-hermes-core",
+    # Use the canonical BURST implementation from the bundled submodule.
+    # `BurstInterfaceC` (C-fast-path via nanobind) is preferred; the package
+    # also ships a pure-Python `BurstInterfacePy` so a host without compiled
+    # wheels still imports cleanly.
+    "burst-link-protocol",
+]
+
+[tool.uv.sources]
+burst-link-protocol = { path = "./burst-link-protocol", editable = true }
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E402"]
+
+[tool.ruff]
+line-length = 120
+exclude = ["**.pyi", "**/.venv/**"]
+include = ["src/**.py", "test/**.py"]
+
+[tool.pyright]
+ignore = ["**.pyi", "**/.venv/**"]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0"
+raw-options = { root = ".." }

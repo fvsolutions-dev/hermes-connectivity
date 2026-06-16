@@ -1,0 +1,34 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Edit UI",
+            "detail": "Edit the UI file in  Qt Designer",
+            "type": "shell",
+            "command": "qt-build",
+            "args": [
+                "edit",
+                "src/ble_node/ui/interface.ui",
+                "src/ble_node/ui/manager_interface.ui"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+        },
+        {
+            "label": "Build UI",
+            "detail": "Build the UI file in  Qt Designer",
+            "type": "shell",
+            "command": "qt-build",
+            "args": [
+                "convert",
+                "src/ble_node/ui/interface.ui",
+                "src/ble_node/ui/manager_interface.ui",
+                "-i"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+        }
+    ]
+}

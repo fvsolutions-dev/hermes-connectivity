@@ -1,0 +1,4 @@
+[submodule "framing/burst-link-protocol"]
+	path = framing/burst-link-protocol
+	url = https://github.com/fvsolutions-dev/burst-link-protocol.git
+	branch = master
