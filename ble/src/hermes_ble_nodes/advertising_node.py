@@ -41,16 +41,43 @@ class BleAdvertisingNode(SourceNode, AsyncGenericNode):
             description="Whether to deduplicate advertisements (only emit data from each unique device address once)",
             default=False,
         )
+        debug: bool = Field(
+            description=(
+                "Log every advertisement this node emits (device, rssi, company id, payload hex). "
+                "Useful to confirm data is arriving at all, since the payload is a BinaryDataPacket "
+                "that downstream print/tracker nodes cannot render."
+            ),
+            default=False,
+        )
+        duplicate_data: bool = Field(
+            description=(
+                "BlueZ only: set the DuplicateData discovery filter so every advertising frame is "
+                "reported, instead of only BlueZ-visible property changes. Required to receive a "
+                "broadcast data stream reliably — without it BlueZ can withhold a device whose "
+                "adverts it considers unchanged, and that device then never produces any data. "
+                "Pair with deduplicate=True to drop the resulting per-channel repeats."
+            ),
+            default=False,
+        )
 
     config: Config
     scanner: BleakScanner | None = None
     last_data_per_uuid: dict[str,bytes] = {}
     async def init(self):
         self.log.info("Starting BLE advertisement scanner")
+        backend_args = {}
+        if self.config.duplicate_data:
+            # Imported lazily: bleak.args.bluez only exists on bleak >= 3, and this
+            # package supports older versions where the filter simply isn't available.
+            from bleak.args.bluez import BlueZScannerArgs
+
+            backend_args["bluez"] = BlueZScannerArgs(filters={"DuplicateData": True})
+
         self.scanner = BleakScanner(
             detection_callback=self._on_advertisement,
             service_uuids=self.config.service_uuids,
             scanning_mode=self.config.scanning_mode,
+            **backend_args,
         )
         await self.scanner.start()
 
@@ -78,6 +105,12 @@ class BleAdvertisingNode(SourceNode, AsyncGenericNode):
                     return  
                 self.last_data_per_uuid[device.address] = payload
             
+            if self.config.debug:
+                self.log.info(
+                    f"{device.address} {advertisement_data.rssi:4d} dBm "
+                    f"mfr[{company_id:#06x}] {len(payload):3d} B {payload.hex()}"
+                )
+
             packet = AdvertisementDataPacket(
                 source=self.config.name,
                 timestamp=time.time(),
