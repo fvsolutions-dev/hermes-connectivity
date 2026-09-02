@@ -1,3 +1,4 @@
+import re
 import time
 from typing import List, Literal
 
@@ -15,14 +16,27 @@ from dataclasses import dataclass
 class AdvertisementDataPacket(BinaryDataPacket):
     device: str
     rssi: int
-    
+    name: str = ""
+
 class BleAdvertisingNode(SourceNode, AsyncGenericNode):
-    """Source node that scans for BLE advertisements and emits each one as a data packet."""
+    """Source node that scans for BLE advertisements and emits each one as a data packet.
+
+    Also keeps a seen-device registry (refreshed on every advert) so connection
+    nodes can resolve a live `BLEDevice` from the adverts already flowing,
+    instead of starting a second discovery scan — see `BleNode`'s
+    `device_provider`."""
 
     class Config(SourceNode.Config):
         type: Literal["ble_advertising_node"] = "ble_advertising_node"
         address: str | list[str] | None = Field(
             description="Optional MAC/UUID filter; only emit advertisements from these addresses (string or list of strings). If None, emit from all devices.",
+            default=None,
+        )
+        name_match: str | None = Field(
+            description="Optional regex matched against the advertised local name "
+            "(falling back to the resolved device name), e.g. 'Sensor-.*'; only emit "
+            "advertisements from matching devices. Note: frames that carry no name "
+            "(a bare advert whose name arrives in the scan response) are dropped.",
             default=None,
         )
         service_uuids: List[str] | None = Field(
@@ -62,7 +76,16 @@ class BleAdvertisingNode(SourceNode, AsyncGenericNode):
 
     config: Config
     scanner: BleakScanner | None = None
-    last_data_per_uuid: dict[str,bytes] = {}
+
+    def __init__(self, config: Config):
+        super().__init__(config)
+        self.last_data_per_uuid: dict[str, bytes] = {}
+        self.seen_devices: dict[str, BLEDevice] = {}
+        self._name_pattern = re.compile(config.name_match) if config.name_match else None
+
+    def get_seen_device(self, address: str) -> BLEDevice | None:
+        return self.seen_devices.get(address)
+
     async def init(self):
         self.log.info("Starting BLE advertisement scanner")
         backend_args = {}
@@ -87,7 +110,10 @@ class BleAdvertisingNode(SourceNode, AsyncGenericNode):
             self.scanner = None
 
     def _on_advertisement(self, device: BLEDevice, advertisement_data: AdvertisementData):
-        
+        # Registry entries stay fresh because they're refreshed on every advert
+        # (before any filtering) — BlueZ needs a recently-seen device to connect.
+        self.seen_devices[device.address] = device
+
         if self.config.address is not None:
             if isinstance(self.config.address, str):
                 if device.address != self.config.address:
@@ -95,7 +121,12 @@ class BleAdvertisingNode(SourceNode, AsyncGenericNode):
             elif isinstance(self.config.address, list):
                 if device.address not in self.config.address:
                     return
-    
+
+        if self._name_pattern is not None:
+            name = advertisement_data.local_name or device.name or ""
+            if self._name_pattern.search(name) is None:
+                return
+
         for company_id, payload in advertisement_data.manufacturer_data.items():
             if self.config.company_id is not None and company_id != self.config.company_id:
                 continue
@@ -117,6 +148,7 @@ class BleAdvertisingNode(SourceNode, AsyncGenericNode):
                 data=payload,
                 device=device.address,
                 rssi=advertisement_data.rssi,
+                name=advertisement_data.local_name or device.name or "",
             )
 
             self.send_data(packet)

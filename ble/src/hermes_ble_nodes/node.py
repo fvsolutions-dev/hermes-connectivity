@@ -1,7 +1,8 @@
 import asyncio
-from typing import Awaitable, Callable, Literal
+from typing import Awaitable, Callable, Literal, Protocol
 
 from bleak import BleakClient
+from bleak.backends.device import BLEDevice
 from pydantic import Field
 
 from node_hermes_core.generic_node.generic import AsyncGenericNode
@@ -12,6 +13,14 @@ from .discovery import BleDiscovery
 # and with no args on disconnect. Used by BleCharacteristicNode to (re)subscribe.
 ConnectCallback = Callable[[BleakClient], Awaitable[None]]
 DisconnectCallback = Callable[[], Awaitable[None]]
+
+
+class SeenDeviceProvider(Protocol):
+    """Anything that can hand out a live BLEDevice for an address — typically
+    a BleAdvertisingNode, whose registry is refreshed by the adverts already
+    flowing."""
+
+    def get_seen_device(self, address: str) -> BLEDevice | None: ...
 
 
 class BleNode(AsyncGenericNode):
@@ -36,9 +45,16 @@ class BleNode(AsyncGenericNode):
     # Live, human-readable link state for the UI: scanning|connecting|connected|disconnected
     connection_status: str = "idle"
 
+    def __init__(self, config: Config, device_provider: SeenDeviceProvider | None = None):
+        super().__init__(config)
+        self.device_provider = device_provider
+        # Created here, not in init(): dependents (e.g. a characteristic node
+        # inited before the link) may register listeners before this node is
+        # initialized.
+        self._listeners: list[tuple[ConnectCallback, DisconnectCallback]] = []
+
     async def init(self):
         self._stop = False
-        self._listeners: list[tuple[ConnectCallback, DisconnectCallback]] = []
         self._disconnected_evt: asyncio.Event | None = None
         self.client = None
         self.connection_status = "scanning"
@@ -61,6 +77,9 @@ class BleNode(AsyncGenericNode):
             except Exception:
                 pass
             self.client = None
+        # Start the next init() clean; dependents that outlive this node
+        # re-register through their own init (or registered pre-init again).
+        self._listeners.clear()
         self.connection_status = "idle"
 
     def add_connection_listener(self, on_connect: ConnectCallback, on_disconnect: DisconnectCallback):
@@ -81,24 +100,47 @@ class BleNode(AsyncGenericNode):
         except Exception:
             self.log.exception(f"BLE {what} listener failed")
 
+    async def _resolve_device(self) -> tuple[BLEDevice, object | None]:
+        """Target device + (scanner to stop after connect, or None).
+
+        With a device_provider and a configured address, poll the provider's
+        registry — fed by the adverts already flowing — instead of starting a
+        second discovery scan. Falls back to a BleDiscovery scan otherwise."""
+        if self.device_provider is not None and self.config.address is not None:
+            deadline = asyncio.get_running_loop().time() + self.config.scan_timeout
+            while not self._stop:
+                device = self.device_provider.get_seen_device(self.config.address)
+                if device is not None:
+                    return device, None
+                if asyncio.get_running_loop().time() > deadline:
+                    raise TimeoutError(
+                        f"{self.config.address} not seen advertising within "
+                        f"{self.config.scan_timeout}s"
+                    )
+                await asyncio.sleep(0.2)
+            raise asyncio.CancelledError
+
+        discovery = BleDiscovery(self.config, log=self.log)
+        return await discovery.scan()
+
     async def _connection_loop(self):
-        """Scan → connect → notify listeners → wait for disconnect → retry.
-        Never raises out of the node: failures just trigger a backoff + retry,
-        so the node stays ACTIVE and the UI keeps reflecting live status."""
+        """Resolve device → connect → notify listeners → wait for disconnect →
+        retry. Never raises out of the node: failures just trigger a backoff +
+        retry, so the node stays ACTIVE and the UI keeps reflecting live status."""
         while not self._stop:
             scanner = None
             try:
                 self.connection_status = "scanning"
-                discovery = BleDiscovery(self.config, log=self.log)
-                device, scanner = await discovery.scan()
+                device, scanner = await self._resolve_device()
 
                 self.connection_status = "connecting"
                 self.log.info(f"Connecting to BLE device {device}")
                 self._disconnected_evt = asyncio.Event()
                 client = BleakClient(device, disconnected_callback=self._on_disconnected)
                 await asyncio.wait_for(client.connect(), timeout=self.config.connection_timeout)
-                await scanner.stop()
-                scanner = None
+                if scanner is not None:
+                    await scanner.stop()
+                    scanner = None
 
                 self.client = client
                 self.connection_status = "connected"
