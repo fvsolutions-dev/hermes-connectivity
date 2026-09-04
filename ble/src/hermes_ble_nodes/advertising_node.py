@@ -73,6 +73,16 @@ class BleAdvertisingNode(SourceNode, AsyncGenericNode):
             ),
             default=False,
         )
+        emit_presence: bool = Field(
+            description=(
+                "Also emit an empty-payload packet for a device that passed the address/name "
+                "filters but carries no manufacturer data matching company_id — so downstream "
+                "can list it as present (and, e.g., connectable) even though it sends no data. "
+                "Only fires when a name_match or address filter is set, so it can't flood the "
+                "output with every nearby device."
+            ),
+            default=False,
+        )
 
     config: Config
     scanner: BleakScanner | None = None
@@ -127,31 +137,53 @@ class BleAdvertisingNode(SourceNode, AsyncGenericNode):
             if self._name_pattern.search(name) is None:
                 return
 
+        name = advertisement_data.local_name or device.name or ""
+        emitted = False
         for company_id, payload in advertisement_data.manufacturer_data.items():
             if self.config.company_id is not None and company_id != self.config.company_id:
                 continue
-            
+
             if self.config.deduplicate:
                 if device.address in self.last_data_per_uuid and self.last_data_per_uuid[device.address] == payload:
-                    return  
+                    return
                 self.last_data_per_uuid[device.address] = payload
-            
+
             if self.config.debug:
                 self.log.info(
                     f"{device.address} {advertisement_data.rssi:4d} dBm "
                     f"mfr[{company_id:#06x}] {len(payload):3d} B {payload.hex()}"
                 )
 
-            packet = AdvertisementDataPacket(
-                source=self.config.name,
-                timestamp=time.time(),
-                data=payload,
-                device=device.address,
-                rssi=advertisement_data.rssi,
-                name=advertisement_data.local_name or device.name or "",
+            self.send_data(
+                AdvertisementDataPacket(
+                    source=self.config.name,
+                    timestamp=time.time(),
+                    data=payload,
+                    device=device.address,
+                    rssi=advertisement_data.rssi,
+                    name=name,
+                )
+            )
+            emitted = True
+
+        # Identity-matched (name/address) but no matching manufacturer data:
+        # emit an empty-payload presence packet so it's still listed. Gated on a
+        # positive filter so this can't fire for every nearby device.
+        if (
+            self.config.emit_presence
+            and not emitted
+            and (self._name_pattern is not None or self.config.address is not None)
+        ):
+            self.send_data(
+                AdvertisementDataPacket(
+                    source=self.config.name,
+                    timestamp=time.time(),
+                    data=b"",
+                    device=device.address,
+                    rssi=advertisement_data.rssi,
+                    name=name,
+                )
             )
 
-            self.send_data(packet)
-            
     def get_data(self) -> None:
         return None

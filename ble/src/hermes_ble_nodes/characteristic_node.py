@@ -118,6 +118,10 @@ class BleCharacteristicNode(SourceSinkNode, AsyncGenericNode):
     # ---------------------------------------------------------------- rx
 
     async def _subscribe(self, client: BleakClient):
+        # Optional characteristics (older firmware) are a fact, not a fault.
+        if client.services.get_characteristic(self.config.rx_uuid) is None:
+            self.log.info(f"device does not offer {self.config.rx_uuid}; not subscribing")
+            return
         self.log.info(f"Subscribing to characteristic {self.config.rx_uuid}")
         try:
             await client.start_notify(self.config.rx_uuid, self._on_notification)
